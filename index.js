@@ -2,26 +2,23 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const productRoutes = require('./routes/productRoutes'); // Ruta de productos
+const clientRouter = require('./routes/clientRoutes');
 
-//requerir las rutas de categorias para la api rest
-const categoryRoutes = require('./routes/CategoryRoutes');
 
 const app = express();
 
-//MiddleWares
-app.use(cors());
-app.use(express.json());
+app.use(cors()); // Habilita CORS
+app.use(express.json()); // Habilita el parseo de JSON
 
-//Crear las rutas de la API REST
-app.use('/api/categorias', categoryRoutes);
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('Conectado a la base de datos MongoDB'))
+  .catch(err => console.log('Error al conectar a MongoDB:', err));
 
-//Conexión a MongoDB y arranca el servidor
-mongoose
-    .connect(process.env.MONGODB_URI,{ useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => {
-        console.log('Conectado correctamente a MongoDB');
-        app.listen(process.env.PORT, () => 
-            console.log(`Servidor no encontrado en http://localhost:${process.env.PORT}`)
-        );
-    })
-    .catch(err => console.error('Error al conectar a MongoDB: ', err.message));
+app.use('/api/products', productRoutes); // Ruta base para productos
+app.use('/api/clients', clientRouter);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en el puerto ${PORT}`);
+});
