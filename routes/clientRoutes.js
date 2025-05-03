@@ -19,7 +19,8 @@ router.post('/', async (req, res) => {
     await nuevoCliente.save();
     res.status(201).json(nuevoCliente); // Respondemos con el cliente creado
   } catch (error) {
-    res.status(500).json({ mensaje: error.message }); // Si hay un error, lo mostramos
+    res.status(500).json({ mensaje: error.message });
+    
   }
 });
 
@@ -27,9 +28,9 @@ router.post('/', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const clientes = await Client.find();
-    res.status(200).json(clientes); // Respondemos con la lista de clientes
+    res.status(200).json(clientes);
   } catch (error) {
-    res.status(500).json({ mensaje: error.message }); // Si hay un error, lo mostramos
+    res.status(500).json({ mensaje: error.message }); 
   }
 });
 
