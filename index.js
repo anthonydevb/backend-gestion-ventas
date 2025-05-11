@@ -29,7 +29,6 @@ app.use('/api/products', productRoutes);   // Ruta base para productos
 app.use('/api/clients', clientRouter);     // Ruta base para clientes
 app.use('/api/ventas', ventaRoutes);       // Ruta base para ventas
 app.use('/api/categorias', categoriaRoutes); // Ruta base para categorías
-
 // Puerto del servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

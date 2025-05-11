@@ -10,6 +10,7 @@ router.post('/', async (req, res) => {
   try {
     const { cliente, productos, total, fecha } = req.body;
 
+    // Verificar que el cliente exista
     const clienteExistente = await Client.findById(cliente);
     if (!clienteExistente) {
       return res.status(400).json({ message: 'Cliente no encontrado' });
@@ -22,13 +23,16 @@ router.post('/', async (req, res) => {
         return res.status(400).json({ message: `Producto con ID ${productos[i].producto} no encontrado` });
       }
 
+      // Verificar si hay suficiente stock
       if (producto.stock < productos[i].cantidad) {
         return res.status(400).json({ message: `No hay suficiente stock para el producto ${producto.nombre}` });
       }
 
+      // Reducir el stock de los productos vendidos
       producto.stock -= productos[i].cantidad;
       await producto.save();
 
+      // Añadir a la lista de productos vendidos
       productosConStock.push({
         producto: producto._id,
         cantidad: productos[i].cantidad,
@@ -36,6 +40,7 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Crear una nueva venta
     const nuevaVenta = new Venta({
       cliente: clienteExistente._id,
       productos: productosConStock,
@@ -43,26 +48,58 @@ router.post('/', async (req, res) => {
       fecha,
     });
 
-    await nuevaVenta.save();
-    res.status(201).json(nuevaVenta);
+    // Guardar la venta
+    const ventaGuardada = await nuevaVenta.save();
+    res.status(201).json(ventaGuardada);
   } catch (error) {
     console.error('Error al registrar la venta:', error);
     res.status(500).json({ message: 'Hubo un error al registrar la venta', error });
   }
 });
 
-// Obtener todas las ventas
+// Obtener todas las ventas y calcular los productos más vendidos
 router.get('/', async (req, res) => {
   try {
     const ventas = await Venta.find()
       .populate('cliente', 'name email phone tipoDocumento documento') // Obtener más información del cliente
-      .populate('productos.producto', 'nombre precio');
-    res.status(200).json(ventas);
+      .populate('productos.producto', 'nombre precio cantidad'); // Asegurarse de incluir la cantidad de productos vendidos
+
+    // Calcular el total de ventas
+    const totalVentas = ventas.reduce((sum, venta) => sum + venta.total, 0);
+
+    // Calcular los productos más vendidos
+    const productosVendidos = {};
+
+    ventas.forEach(venta => {
+      venta.productos.forEach(item => {
+        // Validar si el producto está correctamente poblado
+        if (item.producto && item.producto.nombre) {
+          const producto = item.producto.nombre;
+          const cantidad = item.cantidad;
+
+          if (!productosVendidos[producto]) {
+            productosVendidos[producto] = 0;
+          }
+
+          productosVendidos[producto] += cantidad;
+        } else {
+          console.warn('Producto no encontrado o no está correctamente poblado:', item);
+        }
+      });
+    });
+
+    // Convertir el objeto productosVendidos en un array ordenado de mayor a menor cantidad vendida
+    const productosMasVendidos = Object.entries(productosVendidos)
+      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad);
+
+    res.status(200).json({ ventas, totalVentas, productosMasVendidos });
   } catch (error) {
     console.error('Error al obtener las ventas:', error);
     res.status(500).json({ message: 'Error al obtener las ventas', error });
   }
 });
+
 
 // Generar la boleta en PDF
 router.get('/boleta/:ventaId', async (req, res) => {
@@ -81,15 +118,17 @@ router.get('/boleta/:ventaId', async (req, res) => {
 
     doc.pipe(res);
 
-
+    // Título de la boleta
     doc.fontSize(20).font('Helvetica-Bold').text('BOLETA DE VENTA', { align: 'center' }).moveDown();
+    
+    // Datos del cliente
     doc.fontSize(12).font('Helvetica').text(`Cliente: ${venta.cliente.name}`).moveDown();
-    doc.text(`Email: ${venta.cliente.email}`).moveDown();  // Mostrar email del cliente
-    doc.text(`Teléfono: ${venta.cliente.phone}`).moveDown(); // Mostrar teléfono
-    doc.text(`Tipo de Documento: ${venta.cliente.tipoDocumento}`).moveDown();  // Mostrar tipo de documento
-    doc.text(`Número de Documento: ${venta.cliente.documento}`).moveDown();  // Mostrar número de documento
+    doc.text(`Email: ${venta.cliente.email}`).moveDown();
+    doc.text(`Teléfono: ${venta.cliente.phone}`).moveDown();
+    doc.text(`Tipo de Documento: ${venta.cliente.tipoDocumento}`).moveDown();
+    doc.text(`Número de Documento: ${venta.cliente.documento}`).moveDown();
 
-    // Información de la venta
+    // Información de los productos
     doc.text('Productos:', { underline: true }).moveDown();
 
     venta.productos.forEach(item => {
@@ -104,7 +143,7 @@ router.get('/boleta/:ventaId', async (req, res) => {
     // Fecha
     doc.fontSize(10).font('Helvetica').text(`Fecha: ${new Date(venta.fecha).toLocaleString()}`).moveDown();
 
-    // Footer (si deseas agregar algún dato adicional como contacto)
+    // Pie de página
     doc.moveTo(0, doc.y)
       .lineTo(600, doc.y)
       .strokeColor('#000')
@@ -115,7 +154,6 @@ router.get('/boleta/:ventaId', async (req, res) => {
     doc.text('Dirección de tu tienda | Teléfono: 123-456-7890', { align: 'center' }).moveDown();
     
     doc.end();
-
   } catch (error) {
     console.error('Error generando la boleta:', error);
     res.status(500).json({ message: 'Error generando la boleta', error });
